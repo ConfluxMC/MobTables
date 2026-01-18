@@ -3,18 +3,19 @@ package de.itotterstadt.mobtables.listeners
 import de.itotterstadt.mobtables.plugin
 import de.itotterstadt.mobtables.util.Config
 import de.itotterstadt.mobtables.util.range
+import io.papermc.paper.registry.RegistryAccess
+import io.papermc.paper.registry.RegistryKey
+import org.bukkit.DyeColor
 import org.bukkit.Location
 import org.bukkit.Material
-import org.bukkit.block.Biome
-import org.bukkit.entity.Entity
-import org.bukkit.entity.EntityType
-import org.bukkit.entity.Piglin
-import org.bukkit.entity.Slime
+import org.bukkit.NamespacedKey
+import org.bukkit.entity.*
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason
 import org.bukkit.event.entity.EntitySpawnEvent
+import org.bukkit.material.Colorable
 import org.bukkit.util.Vector
 import kotlin.collections.LinkedHashMap
 
@@ -34,8 +35,7 @@ class SpawnCondition(hashMap: LinkedHashMap<String, *>) {
     private fun _valid(location: Location): Boolean {
         when (type) {
             SpawnConditionTypes.BIOME -> {
-                val targetBiome = Biome.valueOf(data["biome"] as String)
-                return targetBiome == location.block.biome
+                return (data["biome"] as String).lowercase() == "${location.block.biome.key().namespace().lowercase()}:${location.block.biome.key().value().lowercase()}"
             }
             SpawnConditionTypes.BLOCK -> {
                 val targetBlock = (data["filter"] as List<String>).map {
@@ -174,11 +174,14 @@ class SpawnAttribute(hashMap: LinkedHashMap<String, *>): Conditioned(hashMap) {
         for ((key, value) in values.entries) {
             when (key) {
                 "IsImmuneToZombification" -> {
-                    if (entity !is Piglin) {
-                        plugin!!.logger.severe("mob ${entity.type} ist kein Piglin")
+                    if (entity is PiglinAbstract)
+                        entity.isImmuneToZombification = value as Boolean
+                    else if (entity is Hoglin)
+                        entity.isImmuneToZombification = value as Boolean
+                    else {
+                        plugin!!.logger.severe("mob ${entity.type} ist kein Piglin oder Hoglin")
                         continue
                     }
-                    entity.isImmuneToZombification = value as Boolean
                 }
                 "Size" -> {
                     if (entity !is Slime) {
@@ -186,6 +189,64 @@ class SpawnAttribute(hashMap: LinkedHashMap<String, *>): Conditioned(hashMap) {
                         continue
                     }
                     entity.size = range(value)
+                }
+                "Variant" -> {
+                    if (entity is Axolotl)
+                        entity.variant = Axolotl.Variant.valueOf(value as String)
+                    else if (entity is Fox) //Type
+                        entity.foxType = Fox.Type.valueOf(value as String)
+                    else if (entity is Horse) //Pattern/Style
+                            entity.style = Horse.Style.valueOf(value as String)
+                    else if (entity is Llama)
+                        entity.color = Llama.Color.valueOf(value as String)
+                    else if (entity is MushroomCow)
+                        entity.variant = MushroomCow.Variant.valueOf(value as String)
+                    else if (entity is Parrot)
+                        entity.variant = Parrot.Variant.valueOf(value as String)
+                    else if (entity is Rabbit)
+                        entity.rabbitType = Rabbit.Type.valueOf(value as String)
+                    else if (entity is Wolf)
+                        //entity.variant = Registry.WOLF_VARIANT.get(NamespacedKey.minecraft((value as String).lowercase()))!!
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.WOLF_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    else if (entity is Cat)
+                    //entity.catType = Registry.CAT_VARIANT.get(NamespacedKey.minecraft((value as String).lowercase()))!!
+                        entity.catType = RegistryAccess.registryAccess().getRegistry(RegistryKey.CAT_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    else if (entity is Frog)
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.FROG_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    //entity.variant = Registry.FROG_VARIANT.get(NamespacedKey.minecraft((value as String).lowercase()))!!
+                    else if (entity is Pig)
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.PIG_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    else if (entity is Cow)
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.COW_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    else if (entity is Chicken)
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.CHICKEN_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                    else if (entity is ZombieNautilus)
+                        entity.variant = RegistryAccess.registryAccess().getRegistry(RegistryKey.ZOMBIE_NAUTILUS_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                        //entity.variant = RegistryKey.ZOMBIE_NAUTILUS_VARIANT.typedKey(value as String).key() as ZombieNautilus.Variant
+                    else {
+                        plugin!!.logger.severe("mob ${entity.type} hat kein Variant")
+                        continue
+                    }
+                }
+                "Color" -> {
+                    if (entity is Horse)
+                        entity.color = Horse.Color.valueOf(value as String)
+                    else if (entity is Colorable) //Sheep and Shulkers
+                        entity.color = DyeColor.valueOf(value as String)
+                    else {
+                        plugin!!.logger.severe("mob ${entity.type} hat kein Color")
+                        continue
+                    }
+                }
+                "Sound" -> {
+                    if (entity is Wolf)
+                        entity.soundVariant = RegistryAccess.registryAccess().getRegistry(RegistryKey.WOLF_SOUND_VARIANT).getOrThrow(NamespacedKey.minecraft((value as String).lowercase()))
+                }
+                "Tame" -> {
+                    if (entity is AbstractHorse)
+                        entity.isTamed = value as Boolean
+                    else if (entity is Ocelot)
+                        entity.isTrusting = value as Boolean
                 }
             }
         }
@@ -220,7 +281,7 @@ class SpawnEntry(hashMap: LinkedHashMap<String, *>): Conditioned(hashMap) {
 }
 
 class SpawnPool(hashMap: LinkedHashMap<String, *>): Conditioned(hashMap) {
-
+// Add null checks here and other areas
     val rolls = hashMap["rolls"] ?: 1
     val entries = (hashMap["entries"] as List<LinkedHashMap<String, *>>).map {
         SpawnEntry(it)
